@@ -17,8 +17,10 @@ const app = express();
 app.use(
   cors({
     origin: [
-      "http://127.0.0.1:[본인의 포트번호]",
-      "http://localhost:[본인의 포트번호]",
+      "http://127.0.0.1:3000",
+      "http://localhost:3000",
+      "http://localhost:5502",   // ★ 추가!
+      "http://127.0.0.1:5502",
     ],
     methods: ["OPTIONS", "POST", "GET", "DELETE"],
     credentials: true,
@@ -30,29 +32,50 @@ app.use(express.json());
 
 const secretKey = "ozcodingschool";
 
-// 클라이언트에서 post 요청을 받은 경우
+// 1,2. 로그인 요청 처리 (POST /)
 app.post("/", (req, res) => {
   const { userId, userPassword } = req.body;
   const userInfo = users.find(
     (el) => el.user_id === userId && el.user_password === userPassword
   );
-  // 유저정보가 없는 경우
   if (!userInfo) {
     res.status(401).send("로그인 실패");
   } else {
-    // 1. 유저정보가 있는 경우 accessToken을 발급하는 로직을 작성하세요.(sign)
-    // 이곳에 코드를 작성하세요.
-    // 2. 응답으로 accessToken을 클라이언트로 전송하세요. (res.send 사용)
-    // 이곳에 코드를 작성하세요.
+    // 1. accessToken 발급
+    const payload = {
+      user_id: userInfo.user_id,
+      user_name: userInfo.user_name,
+    };
+    const accessToken = jwt.sign(payload, secretKey, { expiresIn: "1h" });
+
+    // 2. 토큰을 응답으로 전송
+    res.send({ accessToken }); // (프론트는 response.data.accessToken으로 받음)
   }
 });
 
-// 클라이언트에서 get 요청을 받은 경우
+// 3,4. 토큰 검증 및 유저정보 반환 (GET /)
 app.get("/", (req, res) => {
-  // 3. req headers에 담겨있는 accessToken을 검증하는 로직을 작성하세요.(verify)
-  // 이곳에 코드를 작성하세요.
-  // 4. 검증이 완료되면 유저정보를 클라이언트로 전송하세요.(res.send 사용)
-  // 이곳에 코드를 작성하세요.
+  // 헤더에서 accessToken 추출
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).send("토큰 없음");
+  }
+
+  const token = authHeader.replace("Bearer ", "");
+  // 3. accessToken 검증
+  jwt.verify(token, secretKey, (err, decoded) => {
+    if (err) {
+      return res.status(401).send("토큰이 유효하지 않습니다.");
+    }
+    // 4. 검증 완료 → 유저정보 반환
+    const userInfo = users.find((el) => el.user_id === decoded.user_id);
+    if (!userInfo) {
+      return res.status(404).send("유저를 찾을 수 없습니다.");
+    }
+    // 민감정보(비번)는 제외하고 전송
+    const { user_password, ...rest } = userInfo;
+    res.send(rest);
+  });
 });
 
 app.listen(3000, () => console.log("서버 실행!"));

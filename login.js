@@ -23,7 +23,7 @@ function login() {
     axios
       .post("http://localhost:3000", { userId, userPassword })
       // 받은 엑세스 토큰을 변수에 저장
-      .then((res) => (accessToken = res.data))
+      .then((res) => (accessToken = res.data.accessToken))
   );
 }
 
